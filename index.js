@@ -1,15 +1,12 @@
-const AWS = require('aws-sdk');
-const { Pool } = require('pg');
-const poolConfig = {
-    user: process.env.user,
-    host: process.env.host,
-    database: process.env.database,
-    password: process.env.password,
-    port: process.env.port
+const aws = require('aws-sdk');
+const dynamodb = new aws.DynamoDB();
+const converter = require('aws-sdk').DynamoDB.Converter;
+const unmarshall = async(input) => {
+    for (let i = 0; i < input.Items.length; i++) { input.Items[i] = converter.unmarshall(input.Items[i]); }
+    return input.Items;
 };
-const Parser = require('rss-parser');
-const parser = new Parser();
 const fetch = require('node-fetch');
+const { v4: uuidv4 } = require('uuid');
 
 exports.handler = async(event) => {
     console.log('heythisischris init');
@@ -20,38 +17,38 @@ exports.handler = async(event) => {
             method: 'POST',
             body: JSON.stringify({
                 query: `{${['place4pals', 'productabot', 'heythisischris'].map(obj => `
-  ${obj}: search(query: "org:${obj}", type: REPOSITORY, last: 10) {
-    nodes {
-      ... on Repository {
-        name
-        url
-        refs(refPrefix: "refs/heads/", first: 10) {
-          edges {
-            node {
-              ... on Ref {
-                name
-                target {
-                  ... on Commit {
-                    history(first: 100, author: {emails:["chris@heythisischris.com","thisischrisaitken@gmail.com","caitken@teckpert.com"]}) {
-                      edges {
-                        node {
-                          ... on Commit {
-                            message
-                            commitUrl
-                            committedDate
+                ${obj}: search(query: "org:${obj}", type: REPOSITORY, last: 10) {
+                    nodes {
+                      ... on Repository {
+                        name
+                        url
+                        refs(refPrefix: "refs/heads/", first: 10) {
+                          edges {
+                            node {
+                              ... on Ref {
+                                name
+                                target {
+                                  ... on Commit {
+                                    history(first: 100, author: {emails:["chris@heythisischris.com","thisischrisaitken@gmail.com","caitken@teckpert.com"]}) {
+                                      edges {
+                                        node {
+                                          ... on Commit {
+                                            message
+                                            commitUrl
+                                            committedDate
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       }
                     }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-}`).join('')}}`
+                }`).join('')}}`
             }),
             headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.github).toString('base64') }
         });
@@ -78,20 +75,12 @@ exports.handler = async(event) => {
         return { statusCode: 200, body: JSON.stringify(responseArray.splice(0, 30)), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/feed') {
-        let feed = await parser.parseURL('https://blog.heythisischris.com/feed');
-
-        let pool = new Pool(poolConfig);
-        for (let obj of feed.items) {
-            let response = await pool.query('SELECT COUNT(*) as count FROM comments WHERE post_guid = $1', [obj.guid]);
-            obj.commentCount = response.rows[0].count;
-        }
-        pool.end();
-
-        return { statusCode: 200, body: JSON.stringify(feed.items), headers: { 'Access-Control-Allow-Origin': '*' } };
+        let posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" DESC` }).promise());
+        return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
-        AWS.config.update({ region: 'us-east-1' });
-        let response = await new AWS.SES().sendEmail({
+        aws.config.update({ region: 'us-east-1' });
+        let response = await new aws.SES().sendEmail({
             Destination: {
                 ToAddresses: ['chris@heythisischris.com']
             },
@@ -112,25 +101,28 @@ exports.handler = async(event) => {
         return { statusCode: 200, body: JSON.stringify('success'), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/comments') {
-        //do code here to connect to that database of yours
-        let response;
-        let pool = new Pool(poolConfig);
+        let response = [{}];
         if (event.httpMethod === 'GET') {
-            response = await pool.query('SELECT * FROM comments WHERE post_guid = $1', [event.queryStringParameters.post_guid]);
-            for (let obj of response.rows) {
+            response = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='comment' AND "timestamp">='2020-01-01' AND "post_id"='${event.queryStringParameters.post_id}' ORDER BY "timestamp" ASC` }).promise());
+            for (let obj of response) {
                 if (obj.ip_address === event.requestContext.identity.sourceIp) {
                     obj.canDelete = true;
                 }
             }
         }
         else if (event.httpMethod === 'POST') {
-            response = await pool.query('INSERT INTO comments(ip_address, name, comment, post_guid ) VALUES($1, $2, $3, $4) RETURNING *', [event.requestContext.identity.sourceIp, event.body.name.substr(0, 10), event.body.comment.substr(0, 200), event.body.post_guid]);
+            let id = uuidv4().slice(0, 8);
+            await unmarshall(await dynamodb.executeStatement({ Statement: `INSERT INTO heythisischris VALUE {'type':'comment', 'timestamp':'${new Date().toISOString()}', 'ip_address':'${event.requestContext.identity.sourceIp}', 'name':'${event.body.name.substr(0, 10)}', 'content':'${event.body.content.substr(0, 200)}', 'post_id':'${event.body.post_id}', 'id':'${id}'}` }).promise());
+            let post = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'` }).promise()))[0];
+            await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "commentCount"=${post.commentCount+1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'` }).promise());
+            response = [{ id: id }];
         }
         else if (event.httpMethod === 'DELETE') {
-            response = await pool.query('DELETE FROM comments WHERE id = $1 AND ip_address = $2', [event.body.id, event.requestContext.identity.sourceIp]);
+            await unmarshall(await dynamodb.executeStatement({ Statement: `DELETE FROM heythisischris WHERE "type"='comment' AND "timestamp"='${event.body.timestamp}' AND "id"='${event.body.id}' AND "ip_address"='${event.requestContext.identity.sourceIp}'` }).promise());
+            let post = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'` }).promise()))[0];
+            await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "commentCount"=${post.commentCount-1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'` }).promise());
         }
-        pool.end();
-        return { statusCode: 200, body: JSON.stringify(response.rows), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return { statusCode: 200, body: JSON.stringify(response), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else {
         return { statusCode: 200, body: 'whatcha lookin for?', headers: { 'Access-Control-Allow-Origin': '*' } };

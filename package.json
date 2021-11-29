@@ -9,9 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@sendgrid/mail": "^7.1.1",
     "node-fetch": "^2.6.0",
-    "pg": "^8.2.1",
-    "rss-parser": "^3.8.0"
+    "uuid": "^8.3.2"
   }
 }
