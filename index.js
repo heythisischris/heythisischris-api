@@ -12,7 +12,7 @@ exports.handler = async(event) => {
     console.log('heythisischris init');
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
-    if (event.path === '/github') {
+    if (event.path === '/githubSync') {
         let graphql = await fetch('https://api.github.com/graphql', {
             method: 'POST',
             body: JSON.stringify({
@@ -72,31 +72,28 @@ exports.handler = async(event) => {
         }
         responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        return { statusCode: 200, body: JSON.stringify(responseArray.splice(0, 30)), headers: { 'Access-Control-Allow-Origin': '*' } };
+        await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='2020-01-01'`, Parameters: [{ "S": JSON.stringify(responseArray.splice(0, 30)) }] }).promise());
+
+        return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
+    }
+    else if (event.path.endsWith('/github')) {
+        let commits = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT "content" from heythisischris WHERE "type"='github' AND "timestamp"='2020-01-01'` }).promise()))[0].content;
+        return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/feed') {
         let posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" DESC` }).promise());
         return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
-        aws.config.update({ region: 'us-east-1' });
-        let response = await new aws.SES().sendEmail({
-            Destination: {
-                ToAddresses: ['chris@heythisischris.com']
-            },
-            Message: {
-                Body: {
-                    Html: { Data: event.body.message },
-                    Text: { Data: event.body.message }
-                },
-                Subject: {
-                    Data: `${event.body.name} contacted you from ${event.body.email}`
-                }
-            },
+        await new aws.SES({ region: 'us-east-1' }).sendEmail({
+            Destination: { ToAddresses: ['chris@heythisischris.com'] },
             Source: 'noreply@heythisischris.com',
             ReplyToAddresses: ['noreply@heythisischris.com'],
+            Message: {
+                Body: { Html: { Data: event.body.message }, Text: { Data: event.body.message } },
+                Subject: { Data: `${event.body.name} contacted you from ${event.body.email}` }
+            },
         }).promise();
-        console.log(response);
 
         return { statusCode: 200, body: JSON.stringify('success'), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
