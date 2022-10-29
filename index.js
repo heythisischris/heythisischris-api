@@ -1,14 +1,14 @@
 const aws = require('aws-sdk');
 const dynamodb = new aws.DynamoDB();
 const converter = require('aws-sdk').DynamoDB.Converter;
-const unmarshall = async(input) => {
+const unmarshall = async (input) => {
     for (let i = 0; i < input.Items.length; i++) { input.Items[i] = converter.unmarshall(input.Items[i]); }
     return input.Items;
 };
 const fetch = require('node-fetch');
 const { v4: uuidv4 } = require('uuid');
 
-exports.handler = async(event) => {
+exports.handler = async (event) => {
     console.log('heythisischris init');
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
@@ -81,8 +81,17 @@ exports.handler = async(event) => {
         return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/feed') {
-        let posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" DESC` }).promise());
+        let posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" ASC` }).promise());
         return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
+    }
+    else if (event.path === '/apps') {
+        const apps = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='0' ORDER BY "timestamp" ASC` }).promise());
+        return { statusCode: 200, body: JSON.stringify(apps), headers: { 'Access-Control-Allow-Origin': '*' } };
+
+    }
+    else if (event.path === '/app') {
+        const apps = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='0' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC` }).promise()));
+        return { statusCode: 200, body: JSON.stringify(apps[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
         await new aws.SES({ region: 'us-east-1' }).sendEmail({
