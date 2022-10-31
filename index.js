@@ -72,7 +72,7 @@ exports.handler = async (event) => {
         }
         responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='2020-01-01'`, Parameters: [{ "S": JSON.stringify(responseArray.splice(0, 30)) }] }).promise());
+        await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='2020-01-01'`, Parameters: [{ "S": JSON.stringify(responseArray.slice(0, 60)) }] }).promise());
 
         return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
     }
@@ -80,12 +80,16 @@ exports.handler = async (event) => {
         let commits = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT "content" from heythisischris WHERE "type"='github' AND "timestamp"='2020-01-01'` }).promise()))[0].content;
         return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
     }
-    else if (event.path === '/feed') {
-        let posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" ASC` }).promise());
+    else if (event.path === '/posts') {
+        const posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" DESC` }).promise());
         return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
+    else if (event.path === '/post') {
+        const posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' AND id='${event.queryStringParameters.id}'` }).promise());
+        return { statusCode: 200, body: JSON.stringify(posts[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
+    }
     else if (event.path === '/apps') {
-        const apps = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='0' ORDER BY "timestamp" ASC` }).promise());
+        const apps = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='00' ORDER BY "timestamp" ASC` }).promise());
         return { statusCode: 200, body: JSON.stringify(apps), headers: { 'Access-Control-Allow-Origin': '*' } };
 
     }
