@@ -1,14 +1,12 @@
-const aws = require('aws-sdk');
-const dynamodb = new aws.DynamoDB();
-const converter = require('aws-sdk').DynamoDB.Converter;
-const unmarshall = async (input) => {
-    for (let i = 0; i < input.Items.length; i++) { input.Items[i] = converter.unmarshall(input.Items[i]); }
-    return input.Items;
-};
-const fetch = require('node-fetch');
-const { v4: uuidv4 } = require('uuid');
+import { SES } from '@aws-sdk/client-ses';
+import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { unmarshall } from '@aws-sdk/util-dynamodb';
+import { randomUUID } from 'crypto';
 
-exports.handler = async (event) => {
+const ses = new SES({ region: 'us-east-1' });
+const query = async (Statement, Parameters) => { return (await new DynamoDB().executeStatement({ Statement, Parameters })).Items.map(obj => unmarshall(obj)); };
+
+export const handler = async (event) => {
     console.log('heythisischris init');
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
@@ -72,33 +70,33 @@ exports.handler = async (event) => {
         }
         responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='2020-01-01'`, Parameters: [{ "S": JSON.stringify(responseArray.slice(0, 60)) }] }).promise());
+        await query(`UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 60)) }]);
 
         return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path.endsWith('/github')) {
-        let commits = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT "content" from heythisischris WHERE "type"='github' AND "timestamp"='2020-01-01'` }).promise()))[0].content;
+        const commits = (await query(`SELECT "content" from heythisischris WHERE "type"='github' AND "timestamp"='0'`))[0].content;
         return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/posts') {
-        const posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' ORDER BY "timestamp" DESC` }).promise());
+        const posts = await query(`SELECT * from heythisischris WHERE "type"='post' ORDER BY "timestamp" DESC`);
         return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/post') {
-        const posts = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='post' AND "timestamp">='2020-01-01' AND id='${event.queryStringParameters.id}'` }).promise());
+        const posts = await query(`SELECT * from heythisischris WHERE "type"='post' AND id='${event.queryStringParameters.id}'`);
         return { statusCode: 200, body: JSON.stringify(posts[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/apps') {
-        const apps = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='00' ORDER BY "timestamp" ASC` }).promise());
+        const apps = await query(`SELECT * from heythisischris WHERE "type"='app' ORDER BY "timestamp" ASC`);
         return { statusCode: 200, body: JSON.stringify(apps), headers: { 'Access-Control-Allow-Origin': '*' } };
 
     }
     else if (event.path === '/app') {
-        const apps = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='app' AND "timestamp">='0' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC` }).promise()));
+        const apps = await query(`SELECT * from heythisischris WHERE "type"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC`);
         return { statusCode: 200, body: JSON.stringify(apps[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
-        await new aws.SES({ region: 'us-east-1' }).sendEmail({
+        await ses().sendEmail({
             Destination: { ToAddresses: ['chris@heythisischris.com'] },
             Source: 'noreply@heythisischris.com',
             ReplyToAddresses: ['noreply@heythisischris.com'],
@@ -106,14 +104,14 @@ exports.handler = async (event) => {
                 Body: { Html: { Data: event.body.message }, Text: { Data: event.body.message } },
                 Subject: { Data: `${event.body.name} contacted you from ${event.body.email}` }
             },
-        }).promise();
+        });
 
         return { statusCode: 200, body: JSON.stringify('success'), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/comments') {
         let response = [{}];
         if (event.httpMethod === 'GET') {
-            response = await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * from heythisischris WHERE "type"='comment' AND "timestamp">='2020-01-01' AND "post_id"='${event.queryStringParameters.post_id}' ORDER BY "timestamp" ASC` }).promise());
+            response = await query(`SELECT * from heythisischris WHERE "type"='comment' AND "post_id"='${event.queryStringParameters.post_id}' ORDER BY "timestamp" ASC`);
             for (let obj of response) {
                 if (obj.ip_address === event.requestContext.identity.sourceIp) {
                     obj.canDelete = true;
@@ -121,16 +119,16 @@ exports.handler = async (event) => {
             }
         }
         else if (event.httpMethod === 'POST') {
-            let id = uuidv4().slice(0, 8);
-            await unmarshall(await dynamodb.executeStatement({ Statement: `INSERT INTO heythisischris VALUE {'type':'comment', 'timestamp':'${new Date().toISOString()}', 'ip_address':'${event.requestContext.identity.sourceIp}', 'name':'${event.body.name.substr(0, 10)}', 'content':'${event.body.content.substr(0, 200)}', 'post_id':'${event.body.post_id}', 'id':'${id}'}` }).promise());
-            let post = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'` }).promise()))[0];
-            await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "commentCount"=${post.commentCount+1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'` }).promise());
+            const id = randomUUID().slice(0, 8);
+            await query(`INSERT INTO heythisischris VALUE {'type':'comment', 'timestamp':'${new Date().toISOString()}', 'ip_address':'${event.requestContext.identity.sourceIp}', 'name':'${event.body.name.substr(0, 10)}', 'content':'${event.body.content.substr(0, 200)}', 'post_id':'${event.body.post_id}', 'id':'${id}'}`);
+            const post = (await query(`SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'`))[0];
+            await query(`UPDATE heythisischris SET "commentCount"=${post.commentCount+1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
             response = [{ id: id }];
         }
         else if (event.httpMethod === 'DELETE') {
-            await unmarshall(await dynamodb.executeStatement({ Statement: `DELETE FROM heythisischris WHERE "type"='comment' AND "timestamp"='${event.body.timestamp}' AND "id"='${event.body.id}' AND "ip_address"='${event.requestContext.identity.sourceIp}'` }).promise());
-            let post = (await unmarshall(await dynamodb.executeStatement({ Statement: `SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'` }).promise()))[0];
-            await unmarshall(await dynamodb.executeStatement({ Statement: `UPDATE heythisischris SET "commentCount"=${post.commentCount-1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'` }).promise());
+            await query(`DELETE FROM heythisischris WHERE "type"='comment' AND "timestamp"='${event.body.timestamp}' AND "id"='${event.body.id}' AND "ip_address"='${event.requestContext.identity.sourceIp}'`);
+            const post = (await query(`SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'`))[0];
+            await query(`UPDATE heythisischris SET "commentCount"=${post.commentCount-1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
         }
         return { statusCode: 200, body: JSON.stringify(response), headers: { 'Access-Control-Allow-Origin': '*' } };
     }

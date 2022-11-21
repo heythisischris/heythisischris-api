@@ -4,12 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "zip -r ~/heythisischris.zip * && aws lambda update-function-code --function-name heythisischris --zip-file \"fileb://~/heythisischris.zip\""
+    "build": "zip -r lambda.zip * && aws lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" && rm -f lambda.zip"
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "node-fetch": "^2.6.0",
-    "uuid": "^8.3.2"
-  }
+  "type": "module"
 }
