@@ -2,6 +2,7 @@ import { SES } from '@aws-sdk/client-ses';
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { randomUUID } from 'crypto';
+import NotionPageToHtml from 'notion-page-to-html';
 
 const ses = new SES({ region: 'us-east-1' });
 const query = async (Statement, Parameters) => { return (await new DynamoDB().executeStatement({ Statement, Parameters })).Items.map(obj => unmarshall(obj)); };
@@ -92,8 +93,8 @@ export const handler = async (event) => {
 
     }
     else if (event.path === '/app') {
-        const apps = await query(`SELECT * from heythisischris WHERE "type"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC`);
-        return { statusCode: 200, body: JSON.stringify(apps[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
+        const app = (await query(`SELECT * from heythisischris WHERE "type"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC`))[0];
+        return { statusCode: 200, body: JSON.stringify(app), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
         await ses().sendEmail({
@@ -131,6 +132,44 @@ export const handler = async (event) => {
             await query(`UPDATE heythisischris SET "commentCount"=${post.commentCount-1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
         }
         return { statusCode: 200, body: JSON.stringify(response), headers: { 'Access-Control-Allow-Origin': '*' } };
+    }
+    else if (event.path === '/notion') {
+        const dynamodbPosts = [
+            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from heythisischris WHERE "type"='post' ORDER BY "timestamp" ASC`)),
+            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from heythisischris WHERE "type"='app' ORDER BY "timestamp" ASC`)),
+        ];
+
+        const postsNotionId = '3dfb0d0202894333854a64cc463b622f';
+        const appsNotionId = 'fd4047e4863241a79c18f23766054531';
+
+        const notionPosts = [
+            ...(await (await fetch(`https://api.notion.com/v1/blocks/${appsNotionId}/children`, { headers: { 'Notion-Version': '2022-06-28', Authorization: `Bearer ${process.env.notion}` } })).json()).results,
+            ...(await (await fetch(`https://api.notion.com/v1/blocks/${postsNotionId}/children`, { headers: { 'Notion-Version': '2022-06-28', Authorization: `Bearer ${process.env.notion}` } })).json()).results,
+        ].map(obj => { return { id: obj.id.replace(/-/g, ''), last_edited_time: obj.last_edited_time, title: obj.child_page.title, type: obj.parent.page_id.replace(/-/g, '') === postsNotionId ? 'post' : 'app' } });
+
+        for (const notionPost of notionPosts) {
+            const dynamodbPost = dynamodbPosts.find(({ notion_id }) => notion_id === notionPost.id);
+            if (!dynamodbPost) {
+                //we must replicate the notion page as a row in dynamodb
+                const { html } = await NotionPageToHtml.convert(`https://www.notion.so/heythisischris/${notionPost.id}`, { bodyContentOnly: true });
+                await query(`INSERT INTO heythisischris VALUE {'type':'${notionPost.type}', 'timestamp':'${notionPost.type==='post'?new Date().toISOString() : notionPosts.filter(obj=>obj.type==='app').length}', 'id':'${notionPost.title.toLowerCase().replace(/ /g,'-')}', 'notion_id':'${notionPost.id.replace(/-/g,'')}', 'title': '${notionPost.title}', 'commentCount': 0, 'content':?}`, [{ S: html }]);
+                console.log(`Added "${notionPost.title}"`);
+            }
+            else if (notionPost.last_edited_time !== dynamodbPost.last_edited_time) {
+                //the post has been edited, so we must updated the title and content
+                const { html } = await NotionPageToHtml.convert(`https://www.notion.so/heythisischris/${dynamodbPost.notion_id}`, { bodyContentOnly: true });
+                await query(`UPDATE heythisischris SET "title"='${notionPost.title}', "content"=?, "last_edited_time"='${notionPost.last_edited_time}' WHERE "type"='${dynamodbPost.type}' AND "timestamp"='${dynamodbPost.timestamp}' AND "id"='${dynamodbPost.id}'`, [{ S: html }]);
+                console.log(`Updated "${notionPost.title}"`);
+            }
+        }
+
+        //remove deleted notion posts
+        for (const dynamodbPost of dynamodbPosts.filter(obj => !notionPosts.map(({ id }) => id).includes(obj.notion_id))) {
+            await query(`DELETE FROM heythisischris WHERE "type"='${dynamodbPost.type}' AND "timestamp"='${dynamodbPost.timestamp}'`);
+            console.log(`Deleted "${dynamodbPost.id}"`);
+        }
+
+        return;
     }
     else {
         return { statusCode: 200, body: 'whatcha lookin for?', headers: { 'Access-Control-Allow-Origin': '*' } };
