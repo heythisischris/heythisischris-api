@@ -8,8 +8,5 @@
   },
   "author": "",
   "license": "ISC",
-  "type": "module",
-  "dependencies": {
-    "notion-page-to-html": "^1.2.0"
-  }
+  "type": "module"
 }
