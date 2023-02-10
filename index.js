@@ -11,6 +11,7 @@ const s3 = new S3();
 const cloudfront = new CloudFront();
 const ses = new SES({ region: 'us-east-1' });
 const query = async (Statement, Parameters) => { return (await dynamodb.executeStatement({ Statement, Parameters })).Items.map(obj => unmarshall(obj)); };
+/*global fetch*/
 
 export const handler = async (event) => {
     console.log('heythisischris init');
@@ -18,11 +19,11 @@ export const handler = async (event) => {
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
     if (event.path === '/githubSync') {
-        let graphql = await fetch('https://api.github.com/graphql', {
+        const graphql = await (await fetch('https://api.github.com/graphql', {
             method: 'POST',
             body: JSON.stringify({
-                query: `{${['place4pals', 'productabot', 'heythisischris'].map(obj => `
-                ${obj}: search(query: "org:${obj}", type: REPOSITORY, last: 10) {
+                query: `{${['place4pals', 'productabot', 'heythisischris', 'calcbot'].map(obj => `
+                ${obj}: search(query: "org:${obj} is:public", type: REPOSITORY, last: 100) {
                     nodes {
                       ... on Repository {
                         name
@@ -34,7 +35,7 @@ export const handler = async (event) => {
                                 name
                                 target {
                                   ... on Commit {
-                                    history(first: 100, author: {emails:["chris@heythisischris.com","thisischrisaitken@gmail.com","caitken@teckpert.com"]}) {
+                                    history(first: 100, author: {emails:["chris@heythisischris.com"]}) {
                                       edges {
                                         node {
                                           ... on Commit {
@@ -56,8 +57,8 @@ export const handler = async (event) => {
                 }`).join('')}}`
             }),
             headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.github).toString('base64') }
-        });
-        graphql = await graphql.json();
+        })).json();
+
         let responseArray = [];
         for (let org of Object.values(graphql.data)) {
             for (let repo of org.nodes) {
@@ -103,12 +104,21 @@ export const handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify(app), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/contact') {
-        await ses().sendEmail({
+        const {city, region, country} = await (await fetch(`http://ipwho.is/${event.requestContext.identity.sourceIp}`)).json();
+        await ses.sendEmail({
             Destination: { ToAddresses: ['chris@heythisischris.com'] },
             Source: 'noreply@heythisischris.com',
             ReplyToAddresses: ['noreply@heythisischris.com'],
             Message: {
-                Body: { Html: { Data: event.body.message }, Text: { Data: event.body.message } },
+                Body: { Html: { Data: `
+                ${event.body.name} contacted you from ${event.body.email}.
+                <p>Their IP address and location are:</p>
+                <ul>
+                <li>${event.requestContext.identity.sourceIp}</li>
+                <li>${city}, ${region}, ${country}</li>
+                </ul>
+                <p>Their message is:</p>
+                <p>${event.body.message}</p>` } },
                 Subject: { Data: `${event.body.name} contacted you from ${event.body.email}` }
             },
         });
@@ -173,7 +183,7 @@ export const handler = async (event) => {
 
         for (const notionPost of notionPosts) {
             const dynamodbPost = dynamodbPosts.find(({ notion_id }) => notion_id === notionPost.id);
-            if (!dynamodbPost) {
+            if (!dynamodbPost && notionPost.type === 'post') {
                 //we must replicate the notion page as a row in dynamodb
                 const html = await convertNotionBlocksToHtml(notionPost.id);
                 await query(`INSERT INTO heythisischris VALUE {
@@ -233,6 +243,14 @@ export const handler = async (event) => {
             }
         });
         return;
+    }
+    else if (event.path === '/age') {
+        const age = new Date(new Date().getTime() - new Date(process.env.dateOfBirth).getTime()).getUTCFullYear() - 1970;
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ age }),
+            headers: { 'Access-Control-Allow-Origin': '*' },
+        };
     }
     else {
         return {
