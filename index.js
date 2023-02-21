@@ -14,7 +14,7 @@ const query = async (Statement, Parameters) => { return (await dynamodb.executeS
 /*global fetch*/
 
 export const handler = async (event) => {
-    console.log('heythisischris init');
+    console.log('heythisischris init', JSON.stringify(event));
     const lambdaStart = new Date();
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
@@ -78,33 +78,36 @@ export const handler = async (event) => {
         }
         responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        await query(`UPDATE heythisischris SET "content"=? WHERE "type"='github' AND "timestamp"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 60)) }]);
+        await query(`UPDATE htic SET "content"=? WHERE "pk"='github' AND "sk"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 60)) }]);
 
         return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path.endsWith('/github')) {
-        const commits = (await query(`SELECT "content" from heythisischris WHERE "type"='github' AND "timestamp"='0'`))[0].content;
+        const commits = (await query(`SELECT "content" from htic WHERE "pk"='github' AND "sk"='0'`))[0].content;
         return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/posts') {
-        const posts = await query(`SELECT * from heythisischris WHERE "type"='post' ORDER BY "timestamp" DESC`);
+        const posts = await query(`SELECT * from htic WHERE "pk"='post' ORDER BY "sk" DESC`);
         return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/post') {
-        const posts = await query(`SELECT * from heythisischris WHERE "type"='post' AND id='${event.queryStringParameters.id}'`);
+        const posts = await query(`SELECT * from htic WHERE "pk"='post' AND id='${event.queryStringParameters.id}'`);
         return { statusCode: 200, body: JSON.stringify(posts[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
     else if (event.path === '/apps') {
-        const apps = await query(`SELECT * from heythisischris WHERE "type"='app' ORDER BY "timestamp" ASC`);
+        const apps = await query(`SELECT * from htic WHERE "pk"='app' ORDER BY "sk" ASC`);
         return { statusCode: 200, body: JSON.stringify(apps), headers: { 'Access-Control-Allow-Origin': '*' } };
-
     }
     else if (event.path === '/app') {
-        const app = (await query(`SELECT * from heythisischris WHERE "type"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "timestamp" DESC`))[0];
+        const app = (await query(`SELECT * from htic WHERE "pk"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "sk" DESC`))[0];
         return { statusCode: 200, body: JSON.stringify(app), headers: { 'Access-Control-Allow-Origin': '*' } };
     }
+    else if (event.path === '/testimonials') {
+        const testimonials = await query(`SELECT * from htic WHERE "pk"='testimonial' ORDER BY "sk" ASC`);
+        return { statusCode: 200, body: JSON.stringify(testimonials), headers: { 'Access-Control-Allow-Origin': '*' } };
+    }
     else if (event.path === '/contact') {
-        const {city, region, country} = await (await fetch(`http://ipwho.is/${event.requestContext.identity.sourceIp}`)).json();
+        const { city, region, country } = await (await fetch(`http://ipwho.is/${event.requestContext.identity.sourceIp}`)).json();
         await ses.sendEmail({
             Destination: { ToAddresses: ['chris@heythisischris.com'] },
             Source: 'noreply@heythisischris.com',
@@ -132,7 +135,7 @@ export const handler = async (event) => {
     else if (event.path === '/comments') {
         let response = [{}];
         if (event.httpMethod === 'GET') {
-            response = await query(`SELECT * from heythisischris WHERE "type"='comment' AND "post_id"='${event.queryStringParameters.post_id}' ORDER BY "timestamp" ASC`);
+            response = await query(`SELECT * from htic WHERE "pk"='comment' AND "post_id"='${event.queryStringParameters.post_id}' ORDER BY "sk" ASC`);
             for (let obj of response) {
                 if (obj.ip_address === event.requestContext.identity.sourceIp) {
                     obj.canDelete = true;
@@ -150,14 +153,14 @@ export const handler = async (event) => {
                 'post_id':'${event.body.post_id}',
                 'id':'${id}'
             }`);
-            const post = (await query(`SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'`))[0];
-            await query(`UPDATE heythisischris SET "commentCount"=${post.commentCount+1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
+            const post = (await query(`SELECT * from htic WHERE "pk"='post' AND "id"='${event.body.post_id}'`))[0];
+            await query(`UPDATE heythisischris SET "comment_count"=${post.commentCount+1} WHERE "pk"='post' AND "sk"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
             response = [{ id }];
         }
         else if (event.httpMethod === 'DELETE') {
-            await query(`DELETE FROM heythisischris WHERE "type"='comment' AND "timestamp"='${event.body.timestamp}' AND "id"='${event.body.id}' AND "ip_address"='${event.requestContext.identity.sourceIp}'`);
-            const post = (await query(`SELECT * FROM heythisischris WHERE "type"='post' AND "id"='${event.body.post_id}'`))[0];
-            await query(`UPDATE heythisischris SET "commentCount"=${post.commentCount-1} WHERE "type"='post' AND "timestamp"='${post.timestamp}' AND "id"='${event.body.post_id}'`);
+            await query(`DELETE from htic WHERE "pk"='comment' AND "sk"='${event.body.sk}' AND "id"='${event.body.id}' AND "ip_address"='${event.requestContext.identity.sourceIp}'`);
+            const post = (await query(`SELECT * from htic WHERE "pk"='post' AND "id"='${event.body.post_id}'`))[0];
+            await query(`UPDATE heythisischris SET "comment_count"=${post.commentCount-1} WHERE "pk"='post' AND "sk"='${post.sk}' AND "id"='${event.body.post_id}'`);
         }
         return {
             statusCode: 200,
@@ -169,8 +172,8 @@ export const handler = async (event) => {
         let response = '';
 
         const dynamodbPosts = [
-            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from heythisischris WHERE "type"='post' ORDER BY "timestamp" ASC`)),
-            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from heythisischris WHERE "type"='app' ORDER BY "timestamp" ASC`)),
+            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from htic WHERE "pk"='post' ORDER BY "sk" ASC`)),
+            ...(await query(`SELECT "id", "timestamp", "type", "notion_id", "last_edited_time" from htic WHERE "pk"='app' ORDER BY "sk" ASC`)),
         ];
 
         const postsNotionId = '3dfb0d0202894333854a64cc463b622f';
@@ -192,7 +195,7 @@ export const handler = async (event) => {
                     'id':'${notionPost.title.toLowerCase().replace(/ /g,'-')}', 
                     'notion_id':'${notionPost.id.replace(/-/g,'')}', 
                     'title':'${notionPost.title}', 
-                    'commentCount':0, 
+                    'comment_count':0, 
                     'content':?
                 }`, [{ S: html }]);
                 response += `added '${notionPost.title}', `;
@@ -204,14 +207,14 @@ export const handler = async (event) => {
                     "title"='${notionPost.title}', 
                     "content"=?, 
                     "last_edited_time"='${notionPost.last_edited_time}' 
-                WHERE "type"='${dynamodbPost.type}' AND "timestamp"='${dynamodbPost.timestamp}' AND "id"='${dynamodbPost.id}'`, [{ S: html }]);
+                WHERE "pk"='${dynamodbPost.type}' AND "sk"='${dynamodbPost.timestamp}' AND "id"='${dynamodbPost.id}'`, [{ S: html }]);
                 response += `updated '${notionPost.title}', `;
             }
         }
 
         //remove deleted notion posts from dynamodb
         for (const dynamodbPost of dynamodbPosts.filter(({ notion_id }) => !notionPosts.map(({ id }) => id).includes(notion_id))) {
-            await query(`DELETE FROM heythisischris WHERE "type"='${dynamodbPost.type}' AND "timestamp"='${dynamodbPost.timestamp}'`);
+            await query(`DELETE from htic WHERE "pk"='${dynamodbPost.type}' AND "sk"='${dynamodbPost.timestamp}'`);
             response += `deleted '${dynamodbPost.id}', `;
         }
 
