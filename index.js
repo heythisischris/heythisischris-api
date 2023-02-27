@@ -1,273 +1,63 @@
-import { SES } from '@aws-sdk/client-ses';
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { S3 } from "@aws-sdk/client-s3";
-import { CloudFront } from "@aws-sdk/client-cloudfront";
-import { unmarshall } from '@aws-sdk/util-dynamodb';
-import { randomUUID } from 'crypto';
-import { convertNotionBlocksToHtml } from './notion.js';
-
-const dynamodb = new DynamoDB();
-const s3 = new S3();
-const cloudfront = new CloudFront();
-const ses = new SES({ region: 'us-east-1' });
-const query = async (Statement, Parameters) => { return (await dynamodb.executeStatement({ Statement, Parameters })).Items.map(obj => unmarshall(obj)); };
-const shortUuid = () => { return Buffer.from(randomUUID().slice(0, 8).replace(/-/g, ''), 'hex').toString('base64').replace('==', '').replace(/\+/g, '-').replace(/\//g, '_'); };
-/*global fetch*/
+import { githubSync } from './routes/githubSync.js';
+import { github } from './routes/github.js';
+import { posts } from './routes/posts.js';
+import { post } from './routes/post.js';
+import { apps } from './routes/apps.js';
+import { app } from './routes/app.js';
+import { testimonials } from './routes/testimonials.js';
+import { contact } from './routes/contact.js';
+import { comments } from './routes/comments.js';
+import { notion } from './routes/notion.js';
+import { githubCalendar } from './routes/githubCalendar.js';
+import { age } from './routes/age.js';
+import { uuid } from './routes/uuid.js';
+import { empty } from './routes/empty.js';
 
 export const handler = async (event) => {
     console.log(`heythisischris init ${event.httpMethod} ${event.path}`);
-    const lambdaStart = new Date();
+    event.lambdaStart = new Date();
     event.body ? event.body = JSON.parse(event.body) : event.body = {};
 
     if (event.path === '/githubSync') {
-        const graphql = await (await fetch('https://api.github.com/graphql', {
-            method: 'POST',
-            body: JSON.stringify({
-                query: `{${['place4pals', 'productabot', 'heythisischris', 'calcbot'].map(obj => `
-                ${obj}: search(query: "org:${obj} is:public", type: REPOSITORY, last: 100) {
-                    nodes {
-                      ... on Repository {
-                        name
-                        url
-                        refs(refPrefix: "refs/heads/", first: 10) {
-                          edges {
-                            node {
-                              ... on Ref {
-                                name
-                                target {
-                                  ... on Commit {
-                                    history(first: 100, author: {emails:["chris@heythisischris.com"]}) {
-                                      edges {
-                                        node {
-                                          ... on Commit {
-                                            message
-                                            commitUrl
-                                            committedDate
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                }`).join('')}}`
-            }),
-            headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.github).toString('base64') }
-        })).json();
-
-        let responseArray = [];
-        for (let org of Object.values(graphql.data)) {
-            for (let repo of org.nodes) {
-                for (let branch of repo.refs.edges) {
-                    responseArray = responseArray.concat(branch.node.target.history.edges.map(obj => {
-                        return {
-                            date: obj.node.committedDate,
-                            repo: repo.name,
-                            repoUrl: repo.url,
-                            branch: branch.node.name,
-                            commit: obj.node.message,
-                            commitUrl: obj.node.commitUrl
-                        };
-                    }));
-                }
-            }
-        }
-        responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        await query(`UPDATE htic SET "content"=? WHERE "pk"='github' AND "sk"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 60)) }]);
-
-        return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
+        return githubSync({ event });
     }
     else if (event.path.endsWith('/github')) {
-        const commits = (await query(`SELECT "content" from htic WHERE "pk"='github' AND "sk"='0'`))[0].content;
-        return { statusCode: 200, body: commits, headers: { 'Access-Control-Allow-Origin': '*' } };
+        return github({ event });
     }
     else if (event.path === '/posts') {
-        const posts = await query(`SELECT * from htic WHERE "pk"='post' ORDER BY "sk" DESC`);
-        return { statusCode: 200, body: JSON.stringify(posts), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return posts({ event });
     }
     else if (event.path === '/post') {
-        const posts = await query(`SELECT * from htic WHERE "pk"='post' AND id='${event.queryStringParameters.id}'`);
-        return { statusCode: 200, body: JSON.stringify(posts[0]), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return post({ event });
     }
     else if (event.path === '/apps') {
-        const apps = await query(`SELECT * from htic WHERE "pk"='app' ORDER BY "sk" ASC`);
-        return { statusCode: 200, body: JSON.stringify(apps), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return apps({ event });
     }
     else if (event.path === '/app') {
-        const app = (await query(`SELECT * from htic WHERE "pk"='app' AND "id"='${event.queryStringParameters.id}' ORDER BY "sk" DESC`))[0];
-        return { statusCode: 200, body: JSON.stringify(app), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return app({ event });
     }
     else if (event.path === '/testimonials') {
-        const testimonials = await query(`SELECT * from htic WHERE "pk"='testimonial' ORDER BY "sk" ASC`);
-        return { statusCode: 200, body: JSON.stringify(testimonials), headers: { 'Access-Control-Allow-Origin': '*' } };
+        return testimonials({ event });
     }
     else if (event.path === '/contact') {
-        const { city, region, country } = await (await fetch(`http://ipwho.is/${event.requestContext.identity.sourceIp}`)).json();
-        await ses.sendEmail({
-            Destination: { ToAddresses: ['chris@heythisischris.com'] },
-            Source: 'noreply@heythisischris.com',
-            ReplyToAddresses: ['noreply@heythisischris.com'],
-            Message: {
-                Body: { Html: { Data: `
-                ${event.body.name} contacted you from ${event.body.email}.
-                <p>Their IP address and location are:</p>
-                <ul>
-                <li>${event.requestContext.identity.sourceIp}</li>
-                <li>${city}, ${region}, ${country}</li>
-                </ul>
-                <p>Their message is:</p>
-                <p>${event.body.message}</p>` } },
-                Subject: { Data: `${event.body.name} contacted you from ${event.body.email}` }
-            },
-        });
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify('success'),
-            headers: { 'Access-Control-Allow-Origin': '*' },
-        };
+        return contact({ event });
     }
     else if (event.path === '/comments') {
-        let response = [{}];
-        if (event.httpMethod === 'GET') {
-            response = await query(`SELECT * from htic WHERE "pk"='post#${event.queryStringParameters.post_id}#comment' ORDER BY "sk" ASC`);
-            for (let obj of response) {
-                if (obj.ip_address === event.requestContext.identity.sourceIp) {
-                    obj.canDelete = true;
-                }
-                obj.id = obj.sk.split('#')[1];
-            }
-        }
-        else if (event.httpMethod === 'POST') {
-            const id = shortUuid();
-            await query(`INSERT INTO htic VALUE {
-                'pk':'post#${event.body.post_id}#comment',
-                'sk':'${new Date().toISOString()}#${id}',
-                'ip_address':'${event.requestContext.identity.sourceIp}',
-                'name':'${event.body.name.substr(0, 10)}',
-                'content':'${event.body.content.substr(0, 200)}'
-            }`);
-            const post = (await query(`SELECT * from htic WHERE "pk"='post' AND "id"='${event.body.post_id}'`))[0];
-            await query(`UPDATE htic SET "comment_count"=${post.comment_count+1} WHERE "pk"='post' AND "sk"='${post.sk}'`);
-            response = [{ id }];
-        }
-        else if (event.httpMethod === 'DELETE') {
-            await query(`DELETE from htic WHERE "pk"='post#${event.body.post_id}#comment' AND "sk"='${event.body.sk}' AND "ip_address"='${event.requestContext.identity.sourceIp}'`);
-            const post = (await query(`SELECT * from htic WHERE "pk"='post' AND "id"='${event.body.post_id}'`))[0];
-            await query(`UPDATE htic SET "comment_count"=${post.comment_count!==0 ? post.comment_count-1 : 0} WHERE "pk"='post' AND "sk"='${post.sk}'`);
-        }
-        return {
-            statusCode: 200,
-            body: JSON.stringify(response),
-            headers: { 'Access-Control-Allow-Origin': '*' },
-        };
+        return comments({ event });
     }
     else if (event.path === '/notion') {
-        let response = '';
-
-        const dynamodbPosts = [
-            ...(await query(`SELECT * from htic WHERE "pk"='post' ORDER BY "sk" ASC`)),
-            ...(await query(`SELECT * from htic WHERE "pk"='app' ORDER BY "sk" ASC`)),
-        ];
-
-        const postsNotionId = '3dfb0d0202894333854a64cc463b622f';
-        const appsNotionId = 'fd4047e4863241a79c18f23766054531';
-
-        const notionPosts = [
-            ...(await (await fetch(`https://api.notion.com/v1/blocks/${appsNotionId}/children`, { headers: { 'Notion-Version': '2022-06-28', Authorization: `Bearer ${process.env.notion}` } })).json()).results,
-            ...(await (await fetch(`https://api.notion.com/v1/blocks/${postsNotionId}/children`, { headers: { 'Notion-Version': '2022-06-28', Authorization: `Bearer ${process.env.notion}` } })).json()).results,
-        ].map(obj => { return { id: obj.id.replace(/-/g, ''), last_edited_time: obj.last_edited_time, title: obj.child_page.title, type: obj.parent.page_id.replace(/-/g, '') === postsNotionId ? 'post' : 'app' } });
-
-        for (const notionPost of notionPosts) {
-            const dynamodbPost = dynamodbPosts.find(({ notion_id }) => notion_id === notionPost.id);
-            if (!dynamodbPost && notionPost.type === 'post') {
-                //we must replicate the notion page as a row in dynamodb
-                const html = await convertNotionBlocksToHtml(notionPost.id);
-                await query(`INSERT INTO htic VALUE {
-                    'pk':'${notionPost.type}', 
-                    'sk':'${notionPost.type==='post'?new Date().toISOString() : notionPosts.filter(obj=>obj.type==='app').length}', 
-                    'id':'${notionPost.title.toLowerCase().replace(/ /g,'-')}', 
-                    'notion_id':'${notionPost.id.replace(/-/g,'')}', 
-                    'title':'${notionPost.title}', 
-                    'comment_count':0, 
-                    'content':?
-                }`, [{ S: html }]);
-                response += `added '${notionPost.title}', `;
-            }
-            else if (notionPost.last_edited_time !== dynamodbPost.last_edited_time || event.queryStringParameters?.force) {
-                //the post has been edited (or we're forcing a global update), so we must update the title and content
-                const html = await convertNotionBlocksToHtml(dynamodbPost.notion_id);
-                await query(`UPDATE htic SET 
-                    "title"='${notionPost.title}', 
-                    "content"=?, 
-                    "last_edited_time"='${notionPost.last_edited_time}' 
-                WHERE "pk"='${dynamodbPost.type}' AND "sk"='${dynamodbPost.sk}' AND "id"='${dynamodbPost.id}'`, [{ S: html }]);
-                response += `updated '${notionPost.title}', `;
-            }
-        }
-
-        //remove deleted notion posts from dynamodb
-        for (const dynamodbPost of dynamodbPosts.filter(({ notion_id }) => !notionPosts.map(({ id }) => id).includes(notion_id))) {
-            await query(`DELETE from htic WHERE "pk"='${dynamodbPost.type}' AND "sk"='${dynamodbPost.sk}'`);
-            response += `deleted '${dynamodbPost.id}', `;
-        }
-
-        const lambdaDuration = new Date(new Date() - lambdaStart);
-        const message = `Successfully ran in ${(lambdaDuration.getTime() / 1000).toFixed(2)} seconds: ${response.length ? response: 'no updates detected'}.`;
-        console.log(message);
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ message }),
-            headers: { 'Access-Control-Allow-Origin': '*' },
-        };
+        return notion({ event });
     }
     else if (event.path === '/githubCalendar') {
-        const image = await (await (await fetch('https://ghchart.rshah.org/heythisischris')).blob()).arrayBuffer();
-        await s3.putObject({
-            Bucket: 'heythisischris-files',
-            Key: 'githubcalendar.svg',
-            ContentType: 'image/svg+xml',
-            Body: image,
-        });
-        await cloudfront.createInvalidation({
-            DistributionId: 'EXIG3NHS7PGXY',
-            InvalidationBatch: {
-                CallerReference: Date.now().toString(),
-                Paths: {
-                    Quantity: 1,
-                    Items: ['/githubcalendar.svg']
-                }
-            }
-        });
-        return;
+        return githubCalendar({});
     }
     else if (event.path === '/age') {
-        const age = new Date(new Date().getTime() - new Date(process.env.dateOfBirth).getTime()).getUTCFullYear() - 1970;
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ age }),
-            headers: { 'Access-Control-Allow-Origin': '*' },
-        };
+        return age({});
     }
     else if (event.path === '/uuid') {
-        const uuid = shortUuid();
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ uuid }),
-            headers: { 'Access-Control-Allow-Origin': '*' },
-        };
+        return uuid({});
     }
     else {
-        return {
-            statusCode: 200,
-            body: 'Hey there, here are some endpoints you can check out: /posts, /github, & /uuid. Cheers!',
-            headers: { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' },
-        };
+        return empty({});
     }
 };
