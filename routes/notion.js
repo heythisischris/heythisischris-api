@@ -1,5 +1,5 @@
 /*global fetch*/
-import { query } from '../utils/query.js';
+import { query } from '../utils/query';
 
 export const notion = async ({ event }) => {
     let response = '';

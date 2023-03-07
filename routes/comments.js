@@ -1,5 +1,5 @@
-import { query } from '../utils/query.js';
-import { shortUuid } from '../utils/shortUuid.js';
+import { query } from '../utils/query';
+import { shortUuid } from '../utils/shortUuid';
 
 export const comments = async ({ event }) => {
     let response = [{}];

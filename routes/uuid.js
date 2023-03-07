@@ -1,4 +1,4 @@
-import { shortUuid } from '../utils/shortUuid.js';
+import { shortUuid } from '../utils/shortUuid';
 
 export const uuid = async ({}) => {
     const uuid = shortUuid();

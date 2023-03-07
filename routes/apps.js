@@ -1,4 +1,4 @@
-import { query } from '../utils/query.js';
+import { query } from '../utils/query';
 
 export const apps = async ({ event }) => {
     const apps = await query(`SELECT * from htic WHERE "pk"='app' ORDER BY "sk" ASC`);

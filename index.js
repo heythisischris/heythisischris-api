@@ -1,17 +1,17 @@
-import { githubSync } from './routes/githubSync.js';
-import { github } from './routes/github.js';
-import { posts } from './routes/posts.js';
-import { post } from './routes/post.js';
-import { apps } from './routes/apps.js';
-import { app } from './routes/app.js';
-import { testimonials } from './routes/testimonials.js';
-import { contact } from './routes/contact.js';
-import { comments } from './routes/comments.js';
-import { notion } from './routes/notion.js';
-import { githubCalendar } from './routes/githubCalendar.js';
-import { age } from './routes/age.js';
-import { uuid } from './routes/uuid.js';
-import { empty } from './routes/empty.js';
+import { githubSync } from './routes/githubSync';
+import { github } from './routes/github';
+import { posts } from './routes/posts';
+import { post } from './routes/post';
+import { apps } from './routes/apps';
+import { app } from './routes/app';
+import { testimonials } from './routes/testimonials';
+import { contact } from './routes/contact';
+import { comments } from './routes/comments';
+import { notion } from './routes/notion';
+import { githubCalendar } from './routes/githubCalendar';
+import { age } from './routes/age';
+import { uuid } from './routes/uuid';
+import { empty } from './routes/empty';
 
 export const handler = async (event) => {
     console.log(`heythisischris init ${event.httpMethod} ${event.path}`);

@@ -1,4 +1,4 @@
-import { query } from '../utils/query.js';
+import { query } from '../utils/query';
 
 export const post = async ({ event }) => {
     const posts = await query(`SELECT * from htic WHERE "pk"='post' AND id='${event.queryStringParameters.id}'`);

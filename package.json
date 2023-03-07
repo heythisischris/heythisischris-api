@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "zip -r lambda.zip * && aws lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" && rm -f lambda.zip"
+    "build": "npm install && zip -r lambda.zip * && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -f lambda.zip"
   },
   "author": "",
   "license": "ISC",
