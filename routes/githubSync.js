@@ -5,8 +5,8 @@ export const githubSync = async ({ event }) => {
   const graphql = await (await fetch('https://api.github.com/graphql', {
     method: 'POST',
     body: JSON.stringify({
-      query: `{${['place4pals', 'productabot', 'heythisischris', 'calcbot'].map(obj => `
-                ${obj}: search(query: "org:${obj} is:public", type: REPOSITORY, last: 100) {
+      query: `{${['place4pals', 'productabot', 'heythisischris', 'calcbot',].map(obj => `
+                ${obj.replaceAll('-', '')}: search(query: "org:${obj} is:public", type: REPOSITORY, last: 10) {
                     nodes {
                       ... on Repository {
                         name
