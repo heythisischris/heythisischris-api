@@ -1,7 +1,6 @@
-/*global fetch*/
-import { query } from '../utils/query';
+import { event, query } from '#src/utils';
 
-export const notion = async ({ event }) => {
+export const notion = async () => {
     let response = '';
 
     const dynamodbPosts = [
@@ -54,11 +53,7 @@ export const notion = async ({ event }) => {
     const lambdaDuration = new Date(new Date() - event.lambdaStart);
     const message = `Successfully ran in ${(lambdaDuration.getTime() / 1000).toFixed(2)} seconds: ${response.length ? response: 'no updates detected'}.`;
     console.log(message);
-    return {
-        statusCode: 200,
-        body: JSON.stringify({ message }),
-        headers: { 'Access-Control-Allow-Origin': '*' },
-    };
+    return message;
 };
 
 export const convertNotionBlocksToHtml = async (id) => {

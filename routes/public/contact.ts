@@ -1,4 +1,3 @@
-/* global fetch */
 import { SES } from '@aws-sdk/client-ses';
 const ses = new SES({ region: 'us-east-1' });
 
@@ -22,9 +21,5 @@ export const contact = async ({ event }) => {
         },
     });
 
-    return {
-        statusCode: 200,
-        body: JSON.stringify('success'),
-        headers: { 'Access-Control-Allow-Origin': '*' },
-    };
+    return true;
 };

@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "npm install && zip -r lambda.zip * && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -f lambda.zip"
+    "build:prod": "tsc | true && cp package.json dist/package.json && cd dist && npm install --omit=dev && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip && cd .. && rm -rf dist",
+    "build:staging": "tsc | true && cp package.json dist/package.json && cd dist && npm install --omit=dev && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris-staging --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip && cd .. && rm -rf dist"
   },
   "author": "",
   "license": "ISC",
+  "imports": {
+    "#src/*": "./*"
+  },
   "type": "module"
 }

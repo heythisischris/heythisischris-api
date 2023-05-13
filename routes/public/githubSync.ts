@@ -1,7 +1,6 @@
-/*global fetch*/
-import { query } from '../utils/query';
+import { query } from '#src/utils';
 
-export const githubSync = async ({ event }) => {
+export const githubSync = async () => {
   const graphql = await (await fetch('https://api.github.com/graphql', {
     method: 'POST',
     body: JSON.stringify({
@@ -63,5 +62,5 @@ export const githubSync = async ({ event }) => {
 
   await query(`UPDATE htic SET "content"=? WHERE "pk"='github' AND "sk"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 100)) }]);
 
-  return { statusCode: 200, body: "success", headers: { 'Access-Control-Allow-Origin': '*' } };
+  return true;
 };
