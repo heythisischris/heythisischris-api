@@ -1,5 +1,5 @@
 import { event } from "#src/utils/event";
-import { githubSync, github, posts, apps, testimonials, contact, comments, notion, githubCalendar, age, empty } from "#src/routes/public";
+import { githubSync, github, posts, apps, testimonials, contact, comments, notion, age, empty } from "#src/routes/public";
 
 export const publicRouter = async () => {
     if (event.path === '/githubSync') {
@@ -25,9 +25,6 @@ export const publicRouter = async () => {
     }
     else if (event.path === '/notion') {
         return notion();
-    }
-    else if (event.path === '/githubCalendar') {
-        return githubCalendar();
     }
     else if (event.path === '/age') {
         return age();

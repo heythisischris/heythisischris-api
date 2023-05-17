@@ -1,4 +1,10 @@
-export let event = {};
+export let event = {
+    httpMethod: '',
+    path: '',
+    queryStringParameters: {},
+    body: {},
+    requestContext: {},
+};
 
 export const setEvent = (rawEvent) => {
     try {
