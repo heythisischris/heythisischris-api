@@ -15,4 +15,5 @@ export const setEvent = (rawEvent) => {
     catch { }
 
     event = rawEvent;
+    return event;
 }

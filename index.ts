@@ -1,10 +1,14 @@
 import { setEvent } from '#src/utils/event';
-import { publicRouter } from '#src/routers/publicRouter';
+import { publicRouter, internalRouter } from '#src/routers';
 
-export const handler = async (event) => {
+export const handler = async (rawEvent) => {
     console.log(`heythisischris init`);
-    setEvent(event);
-    if (event.rawPath) {
+    const event = setEvent(rawEvent);
+
+    if (event.path.startsWith('/public/')) {
         return publicRouter();
+    }
+    else if (event.path.startsWith('/internal/')) {
+        return internalRouter();
     }
 };

@@ -1,6 +1,6 @@
-import { query } from '#src/utils';
+import { client } from "#src/utils/client";
 
-export const githubSync = async () => {
+export const github = async () => {
   const graphql = await (await fetch('https://api.github.com/graphql', {
     method: 'POST',
     body: JSON.stringify({
@@ -60,7 +60,13 @@ export const githubSync = async () => {
   }
   responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  await query(`UPDATE htic SET "content"=? WHERE "pk"='github' AND "sk"='0'`, [{ "S": JSON.stringify(responseArray.slice(0, 100)) }]);
+  await client.connect();
+  for (const row of responseArray) {
+    await client.query(`
+      INSERT INTO "commits" ("created_at", "repo", "repo_url", "branch", "commit", "commit_url") VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING
+    `, [row.date, row.repo, row.repoUrl, row.branch, row.commit, row.commitUrl]);
+  }
+  await client.clean();
 
-  return true;
+  return responseArray;
 };

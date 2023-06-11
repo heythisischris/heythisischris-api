@@ -13,6 +13,6 @@
   },
   "type": "module",
   "dependencies": {
-    "ksuid": "^3.0.0"
+    "serverless-postgres": "^2.0.2"
   }
 }
