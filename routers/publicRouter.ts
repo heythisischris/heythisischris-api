@@ -1,5 +1,5 @@
 import { event } from "#src/utils/event";
-import { contact, age, test, empty } from "#src/routes/public";
+import { contact, age, test, empty, ip } from "#src/routes/public";
 
 export const publicRouter = async () => {
     if (event.path.endsWith('/contact')) {
@@ -10,6 +10,9 @@ export const publicRouter = async () => {
     }
     else if (event.path.endsWith('/test')) {
         return test();
+    }
+    else if (event.path.endsWith('/ip')) {
+        return ip();
     }
     else {
         return empty();
