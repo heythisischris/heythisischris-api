@@ -1,5 +1,5 @@
 import { setEvent } from '#src/utils/event';
-import { publicRouter, internalRouter } from '#src/routers';
+import { publicRouter, internalRouter } from '#src/routes';
 
 export const handler = async (rawEvent) => {
     console.log(`heythisischris init`);

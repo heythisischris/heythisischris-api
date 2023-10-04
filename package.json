@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc | true && cp package.json dist/package.json && cd dist && npm install --omit=dev && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip && cd .. && rm -rf dist"
+    "build": "yarn install && tsc | true && cp package.json dist/package.json && cp -r node_modules dist/node_modules && cd dist && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip && cd .. && rm -rf dist"
   },
   "author": "",
   "license": "ISC",
@@ -13,6 +13,7 @@
   },
   "type": "module",
   "dependencies": {
-    "serverless-postgres": "^2.0.2"
+    "serverless-postgres": "^2.1.0",
+    "bedrock-node": "file:bedrock-node-v1.0.0.tgz"
   }
 }
