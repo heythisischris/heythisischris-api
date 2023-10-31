@@ -1,5 +1,5 @@
 import { setEvent } from '#src/utils/event';
-import { publicRouter, internalRouter } from '#src/routes';
+import { publicRouter, internalRouter, scheduledRouter } from '#src/routes';
 
 export const handler = async (rawEvent) => {
     console.log(`heythisischris init`);
@@ -10,5 +10,8 @@ export const handler = async (rawEvent) => {
     }
     else if (event.path.startsWith('/internal/')) {
         return internalRouter();
+    }
+    else if (event.path.startsWith('/scheduled/')) {
+        return scheduledRouter();
     }
 };
