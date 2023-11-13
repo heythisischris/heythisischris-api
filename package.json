@@ -13,6 +13,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@notionhq/client": "^2.2.13",
     "serverless-postgres": "^2.1.0"
   },
   "devDependencies": {

@@ -1,2 +1,3 @@
-export * from "./github"
-export * from "./calendar"
+export * from './github'
+export * from './calendar'
+export * from './notionSync'
