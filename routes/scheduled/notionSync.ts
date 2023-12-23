@@ -1,4 +1,4 @@
-import { client, notion } from "#src/utils";
+import { client, notion, sleep } from "#src/utils";
 
 const typesDict = {
     apps: {
@@ -37,7 +37,8 @@ export const notionSync = async () => {
         { databaseId: '10378f9e5cfb4174ba811c9a52574741', table: 'posts' },
     ]) {
         const notionIds = (await notion.databases.query({ database_id: databaseId }))?.results?.map(({ id }) => id);
-        for (const notionId of notionIds) {
+        await Promise.allSettled(notionIds.map(async (notionId, index) => {
+            await sleep(index * 333);
             const blocks = (await notion.blocks.children.list({ block_id: notionId }))?.results;
             let response = '';
             for (const block of blocks) {
@@ -58,7 +59,7 @@ export const notionSync = async () => {
                 }
             }
             await client.query(`UPDATE "${table}" SET "content"=$1 WHERE "notion_id"=$2`, [response, notionId]);
-        }
+        }));
     }
     await client.clean();
     return;
