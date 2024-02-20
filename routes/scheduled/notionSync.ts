@@ -1,6 +1,6 @@
 import { client, notion, sleep } from "#src/utils";
 import { S3 } from "@aws-sdk/client-s3";
-import { getFileExtension } from '#src/utils/getFileExtension';
+import { getFileType } from '#src/utils';
 const s3 = new S3();
 
 const typesDict = {
@@ -64,12 +64,12 @@ export const notionSync = async ({ tables } = { tables: ['apps', 'posts'] }) => 
                     await s3.putObject({
                         Bucket: 'heythisischris-files',
                         Key: s3Key,
-                        ContentType: getFileExtension(notionImageExtension),
+                        ContentType: getFileType(notionImageExtension),
                         Body: notionImage,
                     });
                 }
             }
-            response += `<img class="thumbnail" src="${imageSource}" title="${title}" />`;
+            response += `<a class="hover:opacity-50" target="_blank" href="${imageSource}"><img class="thumbnail" src="${imageSource}" title="${title}" /></a>`;
         }
         else {
             const [startTag, endTag] = typesDict[table][block.type];

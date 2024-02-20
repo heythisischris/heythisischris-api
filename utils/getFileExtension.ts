@@ -1,4 +1,5 @@
 export const getFileExtension = (contentType) => fileExtensionDictionary[contentType];
+export const getFileType = (extension) => Object.entries(fileExtensionDictionary).find(([key, value]) => value === extension)[0];
 
 const fileExtensionDictionary = {
     'audio/x-mpeg': 'mpega',
