@@ -14,7 +14,13 @@
   "type": "module",
   "dependencies": {
     "@notionhq/client": "^2.2.13",
-    "serverless-postgres": "^2.1.0"
+    "aws-jwt-verify": "^4.0.1",
+    "chrono-node": "^2.7.5",
+    "fast-xml-parser": "^4.3.4",
+    "openai": "^4.28.0",
+    "serverless-postgres": "^2.1.0",
+    "string-strip-html": "^13.4.6",
+    "stripe": "^14.18.0"
   },
   "devDependencies": {
     "esbuild": "^0.19.5"

@@ -38,7 +38,7 @@ export const github = async () => {
                     }
                 }`).join('')}}`
     }),
-    headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.github).toString('base64') }
+    headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.GITHUB_KEY).toString('base64') }
   })).json();
 
   let responseArray = [];
