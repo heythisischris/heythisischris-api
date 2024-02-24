@@ -1,15 +1,47 @@
 import { client } from "#src/utils/client";
 
 export const github = async () => {
-  const graphql = await (await fetch('https://api.github.com/graphql', {
-    method: 'POST',
-    body: JSON.stringify({
-      query: `{${['place4pals', 'productabot', 'heythisischris', 'calcbot',].map(obj => `
-                ${obj.replaceAll('-', '')}: search(query: "org:${obj} is:public", type: REPOSITORY, last: 10) {
+  const data = [];
+  const organizations = ['mylongbow', '42macro', 'place4pals', 'productabot', 'heythisischris', 'calcbot', 'calories-bot', 'cloud-gui', 'getarrows', 'on-the-street', 'optionsinsight', 'savinomiller'];
+  // const organizations = ['calcbot'];
+  const treeQuery = `tree {
+    entries { 
+      name mode type lineCount
+      object {
+        ... on Tree {
+          entries {
+            name mode type lineCount
+            object {
+              ... on Tree {
+                entries {
+                  name mode type lineCount
+                  object {
+                    ... on Tree {
+                      entries {
+                        name mode type lineCount
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+  for (const organization of organizations) {
+    const response = await (await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: `{search(query: "org:${organization}", type: REPOSITORY, last: 10) {
                     nodes {
                       ... on Repository {
                         name
                         url
+                        owner {
+                          avatarUrl
+                        }
                         refs(refPrefix: "refs/heads/", first: 10) {
                           edges {
                             node {
@@ -17,13 +49,16 @@ export const github = async () => {
                                 name
                                 target {
                                   ... on Commit {
-                                    history(first: 100, author: {emails:["chris@heythisischris.com"]}) {
+                                    history(first: 100, author: {emails: ["chris@heythisischris.com"]}) {
                                       edges {
                                         node {
                                           ... on Commit {
                                             message
                                             commitUrl
                                             committedDate
+                                            deletions
+                                            additions
+                                            changedFilesIfAvailable
                                           }
                                         }
                                       }
@@ -36,26 +71,32 @@ export const github = async () => {
                         }
                       }
                     }
-                }`).join('')}}`
-    }),
-    headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.GITHUB_KEY).toString('base64') }
-  })).json();
+                  }
+                }`
+      }),
+      headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.GITHUB_KEY).toString('base64') }
+    })).json();
+    data.push(...response?.data?.search?.nodes);
+  }
 
-  let responseArray = [];
-  for (let org of Object.values(graphql.data)) {
-    for (let repo of org.nodes) {
-      for (let branch of repo.refs.edges) {
-        responseArray = responseArray.concat(branch.node.target.history.edges.map(obj => {
-          return {
-            date: obj.node.committedDate,
-            repo: repo.name,
-            repoUrl: repo.url,
-            branch: branch.node.name,
-            commit: obj.node.message,
-            commitUrl: obj.node.commitUrl
-          };
-        }));
-      }
+  const responseArray = [];
+  for (const repo of data) {
+    for (const branch of repo.refs.edges) {
+      responseArray.push(...branch.node.target.history.edges.map(commit => {
+        return {
+          date: commit?.node?.committedDate,
+          repo: repo?.name,
+          repoUrl: repo?.url,
+          image: repo?.owner?.avatarUrl,
+          branch: branch?.node?.name,
+          commit: commit?.node?.message,
+          commitUrl: commit?.node?.commitUrl,
+          additions: commit?.node?.additions,
+          deletions: commit?.node?.deletions,
+          changed_files: commit?.node?.changedFilesIfAvailable,
+          tree: commit?.node?.tree,
+        };
+      }));
     }
   }
   responseArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -63,8 +104,8 @@ export const github = async () => {
   await client.connect();
   for (const row of responseArray) {
     await client.query(`
-      INSERT INTO "commits" ("created_at", "repo", "repo_url", "branch", "commit", "commit_url") VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING
-    `, [row.date, row.repo, row.repoUrl, row.branch, row.commit, row.commitUrl]);
+      INSERT INTO "commits"("created_at", "repo", "repo_url", "branch", "commit", "commit_url", "image", "additions", "deletions", "changed_files", "tree") VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING
+  `, [row?.date, row?.repo, row?.repoUrl, row?.branch, row?.commit, row?.commitUrl, row?.image, row?.additions, row?.deletions, row?.changed_files, JSON.stringify(row?.tree)]);
   }
   await client.clean();
 
