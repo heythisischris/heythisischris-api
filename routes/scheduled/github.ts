@@ -2,8 +2,7 @@ import { client } from "#src/utils/client";
 
 export const github = async () => {
   const data = [];
-  const organizations = ['mylongbow', '42macro', 'place4pals', 'productabot', 'heythisischris', 'calcbot', 'calories-bot', 'cloud-gui', 'getarrows', 'on-the-street', 'optionsinsight', 'savinomiller'];
-  // const organizations = ['calcbot'];
+  const organizations = JSON.parse(process.env.ORGANIZATIONS);
   const treeQuery = `tree {
     entries { 
       name mode type lineCount
@@ -34,7 +33,7 @@ export const github = async () => {
     const response = await (await fetch('https://api.github.com/graphql', {
       method: 'POST',
       body: JSON.stringify({
-        query: `{search(query: "org:${organization}", type: REPOSITORY, last: 10) {
+        query: `{search(query: "org:${organization}", type: REPOSITORY, last: 20) {
                     nodes {
                       ... on Repository {
                         name
