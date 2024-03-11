@@ -7,9 +7,10 @@ export const importLinks = async () => {
     for (const link of links) {
         const id = link?.split('id=')?.[1];
         const data = await (await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)).json();
+
+        /*
         const discussion = stripHtml(await (await fetch(link)).text()).result;
         const articleData = stripHtml(await (await fetch(data?.url)).text()).result;
-
         const openaiResponse = await openai.chat.completions.create({
             model: "gpt-4-turbo-preview",
             messages: [{
@@ -21,6 +22,8 @@ export const importLinks = async () => {
                 `)
             }]
         });
+        */
+        const openaiResponse = null;
 
         await client.query(`
             INSERT INTO "links" ("created_at", "title", "link", "source_link", "description") VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING

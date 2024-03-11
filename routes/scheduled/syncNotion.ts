@@ -1,11 +1,11 @@
 import { client, notion, sleep } from "#src/utils";
 import { S3 } from "@aws-sdk/client-s3";
-import { getFileType } from '#src/utils';
+import { getMimeType } from '#src/utils';
 const s3 = new S3();
 
 const typesDict = {
     apps: {
-        paragraph: [`<div>`, `</div>`],
+        paragraph: [`<p>`, `</p>`],
         heading_3: [`<div class='font-bold text-xl'>`, `</div>`],
         bulleted_list_item: [`<li style='margin-left:30px'>`, `</li>`],
     },
@@ -34,7 +34,7 @@ const convertAnnotations = (annotations, href) => {
     }
 };
 
-export const notionSync = async ({ tables } = { tables: ['apps', 'posts'] }) => {
+export const syncNotion = async ({ tables } = { tables: ['apps', 'posts'] }) => {
     await client.connect();
     const selectedTables = [];
     if (tables.includes('apps')) {
@@ -46,30 +46,39 @@ export const notionSync = async ({ tables } = { tables: ['apps', 'posts'] }) => 
 
     const formatBlock = async ({ table, block }) => {
         let response = '';
-        if (block.type === 'image') {
-            const title = block.image.caption?.[0]?.plain_text ?? '';
-            let imageSource = block.image?.external?.url;
-            if (block.image?.file?.url) {
-                const strippedUrl = block.image.file.url.split('?')?.[0].replace('https://prod-files-secure.s3.us-west-2.amazonaws.com/', '');
-                const notionImageKey = strippedUrl.split('/')[1].replaceAll('-', '');
-                const notionImageExtension = strippedUrl.split('.')[1];
-                const s3Key = `${notionImageKey}.${notionImageExtension}`;
+        if (['image', 'video'].includes(block.type)) {
+            const title = block?.[block.type].caption?.[0]?.plain_text ?? '';
+            let imageSource = block?.[block.type]?.external?.url;
+            if (block?.[block.type]?.file?.url) {
+                const strippedUrl = block?.[block.type].file.url.split('?')?.[0].replace('https://prod-files-secure.s3.us-west-2.amazonaws.com/', '');
+                const notionMediaKey = strippedUrl.split('/')[1].replaceAll('-', '');
+                const notionMediaExtension = strippedUrl.split('.')[1];
+                const s3Key = `${notionMediaKey}.${notionMediaExtension}`;
                 imageSource = `https://files.heythisischris.com/${s3Key}`;
                 try {
                     await s3.headObject({ Bucket: 'heythisischris-files', Key: s3Key });
                 }
                 catch (err) {
                     // We need to upload the image to our own S3 bucket. Let's do it.
-                    const notionImage = await (await (await fetch(block.image?.file?.url)).blob()).arrayBuffer();
+                    const notionImage = await (await (await fetch(block?.[block.type]?.file?.url)).blob()).arrayBuffer();
                     await s3.putObject({
                         Bucket: 'heythisischris-files',
                         Key: s3Key,
-                        ContentType: getFileType(notionImageExtension),
+                        ContentType: getMimeType(notionMediaExtension),
                         Body: notionImage,
                     });
                 }
             }
-            response += `<a class="hover:opacity-50" target="_blank" href="${imageSource}"><img class="thumbnail" src="${imageSource}" title="${title}" /></a>`;
+            if (block.type === 'image') {
+                response += `<a class="hover:opacity-50 ${table === 'posts' && 'thumbnail'}" target="_blank" href="${imageSource}">
+                <img class="rounded-md" src="${imageSource}" title="${title}" />
+                </a>`;
+            }
+            else if (block.type === 'video') {
+                response += `<video class="rounded-md" width="250" autoplay muted loop playsinline controls>
+                <source src="${imageSource}" type="video/mp4" />
+                </video>`;
+            }
         }
         else {
             const [startTag, endTag] = typesDict[table][block.type];
@@ -93,11 +102,13 @@ export const notionSync = async ({ tables } = { tables: ['apps', 'posts'] }) => 
             let response = '';
             for (const block of blocks) {
                 if (block.has_children) {
-                    response += `<div class="flex flex-wrap gap-2">`;
+                    response += `<div class="flex flex-col sm:flex-row gap-2">`;
                     const innerBlocks = (await notion.blocks.children.list({ block_id: block.id })).results;
+                    console.log(JSON.stringify({ innerBlocks }));
                     for (const innerBlock of innerBlocks) {
                         if (innerBlock.has_children) {
                             const inmostBlocks = (await notion.blocks.children.list({ block_id: innerBlock.id })).results;
+                            console.log(JSON.stringify({ inmostBlocks }));
                             for (const inmostBlock of inmostBlocks) {
                                 response += (await formatBlock({ table, block: inmostBlock }));
                             }
