@@ -1,7 +1,7 @@
 name: Deploy to Lambda
 on: push
 jobs:
-  upload:
+  Deploy:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -13,4 +13,4 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
     - name: Deploy to Lambda
-      run: npm install && npx esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip * > /dev/null && aws lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip
+      run: npm install && npx esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip * > /dev/null && aws lambda update-function-code --function-name heythisischris --zip-file fileb://lambda.zip > /dev/null
