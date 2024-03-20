@@ -18,4 +18,4 @@ jobs:
         npx esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk
         cd dist
         zip -r lambda.zip * > /dev/null
-        aws lambda update-function-code --function-name heythisischris${{ github.ref == 'refs/heads/master' && '-staging' || '' }} --zip-file fileb://lambda.zip > /dev/null
+        aws lambda update-function-code --function-name heythisischris${{ github.ref !== 'refs/heads/master' && '-staging' || '' }} --zip-file fileb://lambda.zip > /dev/null
