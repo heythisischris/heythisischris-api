@@ -1,4 +1,4 @@
-name: Deploy to Lambda
+name: Deploy
 on: push
 jobs:
   Deploy:
@@ -7,10 +7,15 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
     - name: Deploy to Lambda
-      run: npm install && npx esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip * > /dev/null && aws lambda update-function-code --function-name heythisischris --zip-file fileb://lambda.zip > /dev/null
+      run: |
+        npm install
+        npx esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk
+        cd dist
+        zip -r lambda.zip * > /dev/null
+        aws lambda update-function-code --function-name heythisischris${{ github.ref == 'refs/heads/master' && '-staging' || '' }} --zip-file fileb://lambda.zip > /dev/null
