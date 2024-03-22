@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip"
+    "build": "esbuild ./*.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris-api --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip"
   },
   "author": "",
   "license": "ISC",
