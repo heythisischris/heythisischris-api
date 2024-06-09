@@ -5,7 +5,7 @@ export const importLinks = async () => {
     await client.connect();
     const links = event?.links ?? event?.queryStringParameters?.links?.split(',');
     for (const link of links) {
-        const id = link?.split('id=')?.[1];
+        const id = isNaN(link) ? link?.split('id=')?.[1] : link;
         const data = await (await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)).json();
 
         /*
