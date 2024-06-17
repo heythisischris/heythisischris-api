@@ -6,8 +6,13 @@ export const runEveryMinute = async () => {
     // Sync IP Ranges
     const newIps = (await (await fetch(`https://ip-ranges.amazonaws.com/ip-ranges.json`)).json()).prefixes
         .filter(({ region, service }) => region === 'us-east-2' && service === 'EC2').map(obj => obj.ip_prefix);
-    const existingIps = (await ec2Client.send(new DescribeSecurityGroupsCommand({ GroupIds: [process.env.DB_SECURITY_GROUP] })))
-        .SecurityGroups?.map(securityGroup => securityGroup?.IpPermissions?.map(ipPermission => ipPermission.IpRanges?.map(ipRange => ipRange.CidrIp)).flat()).flat();
+    const existingIps = (await ec2Client.send(new DescribeSecurityGroupsCommand({ GroupIds: [process.env.DB_SECURITY_GROUP] }))).SecurityGroups
+        .map(securityGroup => securityGroup.IpPermissions
+            .map(ipPermission => ipPermission.IpRanges
+                .filter(obj => obj.Description === 'Lambda')
+                .map(ipRange => ipRange.CidrIp)
+            ).flat()
+        ).flat();
     const addedIps = newIps.filter(newIp => !existingIps.includes(newIp));
     const removedIps = existingIps.filter(existingIp => !newIps.includes(existingIp));
     if (removedIps.length > 0) {

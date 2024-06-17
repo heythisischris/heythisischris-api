@@ -13,16 +13,16 @@
   },
   "type": "module",
   "dependencies": {
-    "@notionhq/client": "^2.2.13",
+    "@notionhq/client": "^2.2.15",
     "aws-jwt-verify": "^4.0.1",
-    "chrono-node": "^2.7.5",
-    "fast-xml-parser": "^4.3.4",
-    "openai": "^4.28.0",
-    "serverless-postgres": "^2.1.0",
-    "string-strip-html": "^13.4.6",
-    "stripe": "^14.18.0"
+    "chrono-node": "^2.7.6",
+    "fast-xml-parser": "^4.4.0",
+    "openai": "^4.51.0",
+    "serverless-postgres": "^2.1.1",
+    "string-strip-html": "^13.4.8",
+    "stripe": "^15.11.0"
   },
   "devDependencies": {
-    "esbuild": "^0.19.5"
+    "esbuild": "^0.21.5"
   }
 }
