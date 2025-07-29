@@ -104,11 +104,11 @@ export const syncNotion = async ({ tables } = { tables: ['apps', 'posts'] }) => 
                 if (block.has_children) {
                     response += `<div class="flex flex-col sm:flex-row gap-2">`;
                     const innerBlocks = (await notion.blocks.children.list({ block_id: block.id })).results;
-                    console.log(JSON.stringify({ innerBlocks }));
+                    // console.log(JSON.stringify({ innerBlocks }));
                     for (const innerBlock of innerBlocks) {
                         if (innerBlock.has_children) {
                             const inmostBlocks = (await notion.blocks.children.list({ block_id: innerBlock.id })).results;
-                            console.log(JSON.stringify({ inmostBlocks }));
+                            // console.log(JSON.stringify({ inmostBlocks }));
                             for (const inmostBlock of inmostBlocks) {
                                 response += (await formatBlock({ table, block: inmostBlock }));
                             }

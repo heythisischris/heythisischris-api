@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild index.ts --bundle --platform=node --outdir=dist --external:@aws-sdk && cd dist && zip -r lambda.zip index.js > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris-api --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip"
+    "build": "esbuild index.ts --bundle --minify --platform=node --target=es2020 --outdir=dist --external:@aws-sdk/client-s3 --external:@aws-sdk/client-cloudfront --external:@aws-sdk/client-bedrock-runtime --external:@aws-sdk/client-ses --external:@aws-sdk/client-ec2 --external:@aws-sdk/client-route-53-domains --loader:.node=file && cd dist && zip -r lambda.zip * > /dev/null && aws --profile heythisischris lambda update-function-code --function-name heythisischris-api --zip-file \"fileb://lambda.zip\" > /dev/null && rm -rf lambda.zip"
   },
   "author": "",
   "license": "ISC",
@@ -13,16 +13,30 @@
   },
   "type": "module",
   "dependencies": {
-    "@notionhq/client": "^2.2.15",
-    "aws-jwt-verify": "^4.0.1",
-    "chrono-node": "^2.7.6",
-    "fast-xml-parser": "^4.4.0",
-    "openai": "^4.51.0",
+    "@aws-sdk/dsql-signer": "^3.750.0",
+    "@notionhq/client": "^2.2.16",
+    "@react-pdf/layout": "4.2.3",
+    "@react-pdf/renderer": "4.2.2",
+    "aws-jwt-verify": "^5.0.0",
+    "blob-stream": "^0.1.3",
+    "chrono-node": "^2.7.8",
+    "fast-xml-parser": "^4.5.3",
+    "graphql": "^16.10.0",
+    "ical-generator": "^8.1.1",
+    "marked": "^15.0.7",
+    "openai": "^4.85.3",
+    "pdfkit": "^0.16.0",
+    "pg": "^8.13.3",
+    "puppeteer-core": "^24.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "serpapi": "^2.1.0",
     "serverless-postgres": "^2.1.1",
+    "sharp": "^0.33.5",
     "string-strip-html": "^13.4.8",
-    "stripe": "^15.11.0"
+    "stripe": "^17.6.0"
   },
   "devDependencies": {
-    "esbuild": "^0.21.5"
+    "esbuild": "^0.25.0"
   }
 }

@@ -3,11 +3,13 @@ import { client } from "#src/utils/client";
 export const syncGithub = async () => {
   const data = [];
   const organizations = JSON.parse(process.env.ORGANIZATIONS);
+  console.log(JSON.stringify({ organizations }))
   for (const organization of organizations) {
-    const response = await (await fetch('https://api.github.com/graphql', {
-      method: 'POST',
-      body: JSON.stringify({
-        query: `{search(query: "org:${organization}", type: REPOSITORY, last: 50) {
+    try {
+      const response = await (await fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: `{search(query: "org:${organization}", type: REPOSITORY, last: 50) {
                     nodes {
                       ... on Repository {
                         name
@@ -46,10 +48,15 @@ export const syncGithub = async () => {
                     }
                   }
                 }`
-      }),
-      headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.GITHUB_KEY).toString('base64') }
-    })).json();
-    data.push(...response?.data?.search?.nodes);
+        }),
+        headers: { Authorization: 'Basic ' + Buffer.from('heythisischris:' + process.env.GITHUB_KEY).toString('base64') }
+      })).json();
+      data.push(...response?.data?.search?.nodes);
+    }
+    catch (err) {
+      console.log(err);
+      console.log(`Error on ${organization}`);
+    }
   }
 
   const responseArray = [];
@@ -76,9 +83,9 @@ export const syncGithub = async () => {
   await client.connect();
   for (const row of responseArray) {
     await client.query(`INSERT INTO "commits"
-      ("created_at", "repo", "repo_url", "branch", "commit", "commit_url", "image", "additions", "deletions", "changed_files")
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING
-    `, [row?.date, row?.repo, row?.repoUrl, row?.branch, row?.commit, row?.commitUrl, row?.image, row?.additions, row?.deletions, row?.changed_files]);
+      ("created_at", "repo", "repo_url", "branch", "commit", "commit_url", "image", "additions", "deletions", "changed_files", "hidden")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING
+    `, [row?.date, row?.repo, row?.repoUrl, row?.branch, row?.commit, row?.commitUrl, row?.image, row?.additions, row?.deletions, row?.changed_files, row.repo.startsWith('swiftynote')]);
   }
   await client.clean();
 
